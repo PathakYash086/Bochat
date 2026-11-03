@@ -1,0 +1,154 @@
+PR6: Regression Techniques
+
+Linear Regression and Polynomial Regression
+
+Dataset: California Housing
+
+import pandas as pd import numpy as np import matplotlib.pyplot as plt
+
+from sklearn.datasets import fetch_california_housing from
+sklearn.model_selection import train_test_split from
+sklearn.linear_model import LinearRegression from sklearn.preprocessing
+import PolynomialFeatures, StandardScaler from sklearn.pipeline import
+make_pipeline from sklearn.metrics import mean_squared_error,
+mean_absolute_error, r2_score
+
+———————————————————
+
+1. Load the California Housing dataset
+
+———————————————————
+
+housing = fetch_california_housing()
+
+df = pd.DataFrame( housing.data, columns=housing.feature_names )
+
+df[“Price”] = housing.target
+
+print(“First Five Records”) print(df.head())
+
+print(“Shape:”, df.shape)
+
+print(“Values”) print(df.isnull().sum())
+
+print(“Summary”) print(df.describe())
+
+———————————————————
+
+2. Select input feature and target
+
+———————————————————
+
+Median income is used as the input feature.
+
+Price is the target variable.
+
+X = df[[“MedInc”]] y = df[“Price”]
+
+print(“Feature:”) print(X.head())
+
+print(“:”) print(y.head())
+
+———————————————————
+
+3. Split data into training and testing sets
+
+———————————————————
+
+X_train, X_test, y_train, y_test = train_test_split( X, y,
+test_size=0.20, random_state=42 )
+
+print(“Samples:”, len(X_train)) print(“Testing Samples :”, len(X_test))
+
+———————————————————
+
+4. Linear Regression
+
+———————————————————
+
+linear_model = make_pipeline( StandardScaler(), LinearRegression() )
+
+linear_model.fit(X_train, y_train)
+
+y_pred_linear = linear_model.predict(X_test)
+
+linear_mse = mean_squared_error(y_test, y_pred_linear) linear_mae =
+mean_absolute_error(y_test, y_pred_linear) linear_r2 = r2_score(y_test,
+y_pred_linear)
+
+print(“========== LINEAR REGRESSION RESULTS ==========”) print(“Mean
+Squared Error (MSE):”, linear_mse) print(“Mean Absolute Error (MAE):”,
+linear_mae) print(“R2 Score:”, linear_r2)
+
+———————————————————
+
+5. Polynomial Regression
+
+———————————————————
+
+Degree 2 adds a squared feature to model a curved relationship.
+
+polynomial_model = make_pipeline( StandardScaler(),
+PolynomialFeatures(degree=2, include_bias=False), LinearRegression() )
+
+polynomial_model.fit(X_train, y_train)
+
+y_pred_poly = polynomial_model.predict(X_test)
+
+poly_mse = mean_squared_error(y_test, y_pred_poly) poly_mae =
+mean_absolute_error(y_test, y_pred_poly) poly_r2 = r2_score(y_test,
+y_pred_poly)
+
+print(“========== POLYNOMIAL REGRESSION RESULTS ==========”) print(“Mean
+Squared Error (MSE):”, poly_mse) print(“Mean Absolute Error (MAE):”,
+poly_mae) print(“R2 Score:”, poly_r2)
+
+———————————————————
+
+6. Compare both regression techniques
+
+———————————————————
+
+results = pd.DataFrame({ “Model”: [“Linear Regression”, “Polynomial
+Regression”], “MSE”: [linear_mse, poly_mse], “MAE”: [linear_mae,
+poly_mae], “R2 Score”: [linear_r2, poly_r2] })
+
+print(“========== MODEL COMPARISON ==========”)
+print(results.to_string(index=False))
+
+———————————————————
+
+7. Visualize actual data and regression predictions
+
+———————————————————
+
+Sort the test feature values so the prediction lines appear smoothly.
+
+plot_data = pd.DataFrame({ “MedInc”: X_test[“MedInc”].to_numpy(),
+“Actual Price”: y_test.to_numpy(), “Linear Prediction”: y_pred_linear,
+“Polynomial Prediction”: y_pred_poly }).sort_values(“MedInc”)
+
+plt.figure(figsize=(10, 6))
+
+plt.scatter( plot_data[“MedInc”], plot_data[“Actual Price”], alpha=0.25,
+label=“Actual Data” )
+
+plt.plot( plot_data[“MedInc”], plot_data[“Linear Prediction”],
+label=“Linear Regression” )
+
+plt.plot( plot_data[“MedInc”], plot_data[“Polynomial Prediction”],
+label=“Polynomial Regression (Degree 2)” )
+
+plt.title(“Linear vs Polynomial Regression”) plt.xlabel(“Median Income”)
+plt.ylabel(“House Price”) plt.legend() plt.tight_layout() plt.show()
+
+———————————————————
+
+8. Conclusion
+
+———————————————————
+
+print(“:”) print(“Linear and Polynomial Regression models were trained”)
+print(“and evaluated using MSE, MAE, and R2 Score.”) print(“Compare the
+evaluation scores above to identify the”) print(“model that performs
+better on the test dataset.”)
