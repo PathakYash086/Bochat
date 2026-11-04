@@ -1,0 +1,147 @@
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, confusion_matrix, classification_report
+)
+
+# Load Dataset
+df = pd.read_csv("/content/breast_cancer.csv")
+
+print("Dataset:")
+print(df.head())
+print("Shape:", df.shape)
+
+# Preprocessing
+df = df.drop(columns=["id"], errors="ignore")
+df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+
+# Separate features and target
+X = df.drop("diagnosis", axis=1)
+y = df["diagnosis"].map({"B": 0, "M": 1})
+
+# Handle missing values
+X = X.apply(pd.to_numeric, errors="coerce")
+X = X.fillna(X.median())
+
+print("\nMissing Values:", X.isnull().sum().sum())
+print("Class Counts:\n", y.value_counts())
+
+# Split Dataset
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Find Best K using Cross Validation
+k_range = range(1, 26)
+scores = []
+
+for k in k_range:
+    model = make_pipeline(
+        StandardScaler(),
+        KNeighborsClassifier(n_neighbors=k)
+    )
+
+    score = cross_val_score(
+        model, X_train, y_train, cv=5, scoring="accuracy"
+    ).mean()
+
+    scores.append(score)
+
+best_k = k_range[np.argmax(scores)]
+
+print("\nBest K:", best_k)
+
+# Plot K vs Accuracy
+plt.plot(k_range, scores, marker="o")
+plt.xlabel("K")
+plt.ylabel("Accuracy")
+plt.title("KNN: K vs Accuracy")
+plt.show()
+
+# Train Models
+log_reg = make_pipeline(
+    StandardScaler(),
+    LogisticRegression(max_iter=1000)
+)
+
+knn = make_pipeline(
+    StandardScaler(),
+    KNeighborsClassifier(n_neighbors=best_k)
+)
+
+log_reg.fit(X_train, y_train)
+knn.fit(X_train, y_train)
+
+models = {
+    "Logistic Regression": log_reg,
+    "KNN": knn
+}
+
+# Model Evaluation
+rows = []
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+
+for ax, (name, model) in zip(axes, models.items()):
+
+    pred = model.predict(X_test)
+
+    rows.append({
+        "Model": name,
+        "Accuracy": accuracy_score(y_test, pred),
+        "Precision": precision_score(y_test, pred),
+        "Recall": recall_score(y_test, pred),
+        "F1-Score": f1_score(y_test, pred)
+    })
+
+    print(f"\n===== {name} =====")
+
+    cm = confusion_matrix(y_test, pred)
+
+    print("Confusion Matrix:\n", cm)
+
+    print(classification_report(
+        y_test, pred,
+        target_names=["Benign", "Malignant"]
+    ))
+
+    sns.heatmap(
+        cm, annot=True, fmt="d", cmap="Blues",
+        xticklabels=["Benign", "Malignant"],
+        yticklabels=["Benign", "Malignant"],
+        ax=ax
+    )
+
+    ax.set_title(name)
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+
+plt.tight_layout()
+plt.show()
+
+# Comparison
+result_df = pd.DataFrame(rows).set_index("Model")
+
+print("\nModel Comparison:\n")
+print(result_df.round(4))
+
+result_df.plot(
+    kind="bar", figsize=(8, 4),
+    rot=0, ylim=(0, 1.05)
+)
+
+plt.title("Logistic Regression vs KNN")
+plt.ylabel("Score")
+plt.show()
+

@@ -1,0 +1,133 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import time
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score
+
+# Load External Dataset
+df = pd.read_csv("/content/digits.csv")
+
+print("Dataset:")
+print(df.head())
+print("Shape:", df.shape)
+
+# Separate Features and Target
+X = df.drop("target", axis=1)
+y = df["target"]
+
+# Split Dataset
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=42, stratify=y
+)
+
+# Feature Scaling
+scaler = StandardScaler()
+
+X_train_s = scaler.fit_transform(X_train)
+X_test_s = scaler.transform(X_test)
+
+print("\nOriginal Features:", X_train_s.shape[1])
+
+# ---------- PCA: Keep 95% Variance ----------
+pca = PCA(n_components=0.95)
+
+X_train_p = pca.fit_transform(X_train_s)
+X_test_p = pca.transform(X_test_s)
+
+print("Features After PCA:", X_train_p.shape[1])
+print("Variance Retained:", round(pca.explained_variance_ratio_.sum(), 4))
+
+# ---------- Explained Variance Plot ----------
+pca_full = PCA().fit(X_train_s)
+
+cum = np.cumsum(pca_full.explained_variance_ratio_)
+
+plt.figure(figsize=(7, 4))
+plt.plot(range(1, len(cum) + 1), cum, marker='o', markersize=3)
+plt.axhline(0.95, color='red', linestyle='--', label='95%')
+plt.xlabel("Number of Components")
+plt.ylabel("Cumulative Explained Variance")
+plt.title("PCA Explained Variance")
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# ---------- 2D Visualization ----------
+pca2 = PCA(n_components=2)
+
+X_train_2d = pca2.fit_transform(X_train_s)
+X_test_2d = pca2.transform(X_test_s)
+
+X_2d = np.vstack((X_train_2d, X_test_2d))
+y_all = np.concatenate((y_train, y_test))
+
+plt.figure(figsize=(8, 6))
+
+sc = plt.scatter(
+    X_2d[:, 0], X_2d[:, 1],
+    c=y_all, cmap='tab10', s=15
+)
+
+plt.colorbar(sc, label="Digit")
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.title("Digits Visualization After PCA")
+plt.show()
+
+# ---------- Classification Comparison ----------
+def run(Xtr, Xte):
+    t = time.perf_counter()
+
+    clf = LogisticRegression(max_iter=5000)
+    clf.fit(Xtr, y_train)
+
+    train_time = time.perf_counter() - t
+
+    pred = clf.predict(Xte)
+
+    acc = accuracy_score(y_test, pred)
+    f1 = f1_score(y_test, pred, average='weighted')
+
+    return acc, f1, train_time
+
+
+# Original Features
+acc1, f11, t1 = run(X_train_s, X_test_s)
+
+# PCA 95% Variance
+acc2, f12, t2 = run(X_train_p, X_test_p)
+
+# PCA 2 Components
+acc3, f13, t3 = run(X_train_2d, X_test_2d)
+
+# ---------- Results ----------
+res = pd.DataFrame({
+    "Setting": [
+        "Original (64 Features)",
+        f"PCA 95% ({X_train_p.shape[1]} Features)",
+        "PCA (2 Features)"
+    ],
+    "Accuracy": [acc1, acc2, acc3],
+    "F1-Score": [f11, f12, f13],
+    "Train Time (s)": [t1, t2, t3]
+})
+
+print("\nClassification Comparison:")
+print(res.round(4).to_string(index=False))
+
+# ---------- Performance Graph ----------
+res.set_index("Setting")[["Accuracy", "F1-Score"]].plot(
+    kind='bar',
+    rot=10,
+    figsize=(8, 4),
+    ylim=(0, 1.05)
+)
+
+plt.title("Impact of PCA on Classification")
+plt.ylabel("Score")
+plt.show()

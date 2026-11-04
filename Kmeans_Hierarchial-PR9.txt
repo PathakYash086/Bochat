@@ -1,0 +1,153 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans, AgglomerativeClustering
+from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
+from scipy.cluster.hierarchy import dendrogram, linkage
+
+# Load External Dataset
+df = pd.read_csv("/content/wine.csv")
+
+print("Dataset:")
+print(df.head())
+print("Shape:", df.shape)
+
+# Separate Features and Actual Classes
+X = df.drop("target", axis=1)
+actual_classes = df["target"]
+
+# Handle Missing Values
+X = X.fillna(X.median())
+
+# Feature Scaling
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# ---------- Elbow Method + Silhouette Score ----------
+inertia = []
+sil = []
+K = range(2, 11)
+
+for k in K:
+    km = KMeans(n_clusters=k, n_init=10, random_state=42)
+    labels = km.fit_predict(X_scaled)
+
+    inertia.append(km.inertia_)
+    sil.append(silhouette_score(X_scaled, labels))
+
+# Find Optimal K
+k_opt = list(K)[np.argmax(sil)]
+
+print("\nOptimal Number of Clusters:", k_opt)
+
+# Plot Elbow and Silhouette
+fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+
+ax[0].plot(K, inertia, marker='o')
+ax[0].set_title("Elbow Method")
+ax[0].set_xlabel("Number of Clusters (K)")
+ax[0].set_ylabel("Inertia (WCSS)")
+
+ax[1].plot(K, sil, marker='o', color='green')
+ax[1].set_title("Silhouette Score")
+ax[1].set_xlabel("Number of Clusters (K)")
+ax[1].set_ylabel("Silhouette Score")
+
+plt.tight_layout()
+plt.show()
+
+# ---------- Dendrogram ----------
+Z = linkage(X_scaled, method='ward')
+
+plt.figure(figsize=(12, 5))
+dendrogram(Z, truncate_mode='lastp', p=30, leaf_rotation=90)
+
+plt.title("Dendrogram (Ward Linkage)")
+plt.xlabel("Samples")
+plt.ylabel("Distance")
+plt.show()
+
+# ---------- K-Means Clustering ----------
+kmeans = KMeans(
+    n_clusters=k_opt,
+    n_init=10,
+    random_state=42
+)
+
+km_labels = kmeans.fit_predict(X_scaled)
+
+# ---------- Hierarchical Clustering ----------
+hc = AgglomerativeClustering(
+    n_clusters=k_opt,
+    linkage='ward'
+)
+
+hc_labels = hc.fit_predict(X_scaled)
+
+# ---------- Silhouette Score Comparison ----------
+print("\nK-Means Silhouette Score:",
+      round(silhouette_score(X_scaled, km_labels), 4))
+
+print("Hierarchical Silhouette Score:",
+      round(silhouette_score(X_scaled, hc_labels), 4))
+
+# ---------- PCA Visualization ----------
+pca = PCA(n_components=2)
+
+pcs = pca.fit_transform(X_scaled)
+
+# Transform K-Means centroids using the same PCA
+centroids = pca.transform(kmeans.cluster_centers_)
+
+fig, ax = plt.subplots(1, 2, figsize=(12, 5))
+
+# K-Means Plot
+ax[0].scatter(
+    pcs[:, 0], pcs[:, 1],
+    c=km_labels, cmap='viridis', s=30
+)
+
+ax[0].scatter(
+    centroids[:, 0], centroids[:, 1],
+    c='red', marker='X', s=200, label='Centroids'
+)
+
+ax[0].set_title("K-Means Clustering")
+ax[0].legend()
+
+# Hierarchical Plot
+ax[1].scatter(
+    pcs[:, 0], pcs[:, 1],
+    c=hc_labels, cmap='viridis', s=30
+)
+
+ax[1].set_title("Hierarchical Clustering")
+
+for a in ax:
+    a.set_xlabel("PC1")
+    a.set_ylabel("PC2")
+
+plt.tight_layout()
+plt.show()
+
+# ---------- Cluster Analysis ----------
+df_result = X.copy()
+df_result["Cluster"] = km_labels
+
+print("\nCluster Sizes:")
+print(df_result["Cluster"].value_counts().sort_index())
+
+print("\nCluster Profile:")
+print(df_result.groupby("Cluster").mean().round(2).T)
+
+# ---------- Compare with Actual Wine Classes ----------
+print("\nActual Class vs K-Means Cluster:")
+print(pd.crosstab(
+    actual_classes,
+    km_labels,
+    rownames=['Actual Class'],
+    colnames=['Cluster']
+))

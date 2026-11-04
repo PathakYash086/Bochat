@@ -1,0 +1,147 @@
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import LabelEncoder
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.naive_bayes import GaussianNB
+
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, confusion_matrix, classification_report
+)
+
+# Load Dataset
+df = pd.read_csv("/content/wine.csv")
+
+print("Dataset:")
+print(df.head())
+print("Shape:", df.shape)
+
+# Data Preprocessing
+df = df.drop(columns=["id"], errors="ignore")
+df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+
+# Separate Features and Target
+X = df.drop("target", axis=1)
+y = df["target"]
+
+# Handle Missing Values
+X = X.fillna(X.median())
+
+# Encode Target Labels
+le = LabelEncoder()
+y = le.fit_transform(y)
+
+class_names = [str(c) for c in le.classes_]
+
+print("\nClasses:", class_names)
+
+# Split Dataset
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=42, stratify=y
+)
+
+# Define Models
+models = {
+    "Decision Tree": DecisionTreeClassifier(
+        max_depth=4, random_state=42
+    ),
+    "Naive Bayes": GaussianNB()
+}
+
+rows = []
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+
+# Train and Evaluate Models
+for ax, (name, model) in zip(axes, models.items()):
+
+    model.fit(X_train, y_train)
+    pred = model.predict(X_test)
+
+    cv = cross_val_score(
+        model, X_train, y_train, cv=5
+    ).mean()
+
+    rows.append({
+        "Model": name,
+        "Accuracy": accuracy_score(y_test, pred),
+        "Precision": precision_score(
+            y_test, pred, average="weighted", zero_division=0
+        ),
+        "Recall": recall_score(
+            y_test, pred, average="weighted", zero_division=0
+        ),
+        "F1-Score": f1_score(
+            y_test, pred, average="weighted", zero_division=0
+        ),
+        "5-Fold CV": cv
+    })
+
+    print(f"\n===== {name} =====")
+
+    print(classification_report(
+        y_test, pred,
+        target_names=class_names,
+        zero_division=0
+    ))
+
+    sns.heatmap(
+        confusion_matrix(y_test, pred),
+        annot=True,
+        fmt="d",
+        cmap="Greens",
+        ax=ax,
+        xticklabels=class_names,
+        yticklabels=class_names
+    )
+
+    ax.set_title(name)
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+
+plt.tight_layout()
+plt.show()
+
+# Decision Tree Visualization
+plt.figure(figsize=(18, 8))
+
+plot_tree(
+    models["Decision Tree"],
+    feature_names=X.columns,
+    class_names=class_names,
+    filled=True,
+    fontsize=8
+)
+
+plt.title("Decision Tree")
+plt.show()
+
+# Feature Importance
+imp = pd.Series(
+    models["Decision Tree"].feature_importances_,
+    index=X.columns
+)
+
+imp.sort_values().tail(8).plot(
+    kind="barh",
+    title="Top Features (Decision Tree)"
+)
+
+plt.show()
+
+# Model Comparison
+res = pd.DataFrame(rows).set_index("Model")
+
+print("\nModel Comparison:\n")
+print(res.round(4))
+
+# Best Model
+best = res["F1-Score"].idxmax()
+
+print("\nMost suitable model for this dataset:", best)
+
