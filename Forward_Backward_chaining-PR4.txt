@@ -1,0 +1,136 @@
+# ============================================================
+# PR4: Knowledge Representation and Expert System (CO1, CO2)
+# Aim: Develop a rule-based expert system using propositional logic and
+#      implement Forward Chaining and Backward Chaining for intelligent
+#      decision making.
+# Domain: simple medical diagnosis (symptoms -> diagnosis -> advice)
+# ============================================================
+
+# ---------- Step 1: Knowledge Representation (propositional logic) ----------
+# Every fact is a PROPOSITION: a statement that is either True or False,
+# written as a symbol (e.g. "fever", "flu").
+# Every RULE is an implication:   P1 AND P2 AND ... -> Q
+# (IF all the premises are true, THEN the conclusion is true.)
+# A rule is stored as a tuple:  ({set of premises}, conclusion)
+rules = [
+    ({"fever", "cough"}, "respiratory_infection"),               # R1: fever AND cough -> respiratory_infection
+    ({"respiratory_infection", "body_ache"}, "flu"),            # R2: respiratory_infection AND body_ache -> flu
+    ({"respiratory_infection", "breathlessness"}, "pneumonia_risk"),   # R3
+    ({"sneezing", "runny_nose"}, "cold"),                       # R4: sneezing AND runny_nose -> cold
+    ({"flu"}, "rest_and_fluids"),                               # R5: flu -> rest_and_fluids
+    ({"cold"}, "rest_and_fluids"),                              # R6: cold -> rest_and_fluids
+    ({"pneumonia_risk"}, "see_doctor"),                         # R7: pneumonia_risk -> see_doctor
+]
+
+
+def show_rules(rules):
+    """Print the knowledge base in readable IF-THEN form."""
+    print("KNOWLEDGE BASE (rules):")
+    for i, (premises, conclusion) in enumerate(rules, start=1):
+        print(f"  R{i}: IF {' AND '.join(sorted(premises))} THEN {conclusion}")
+    print()
+
+
+# ---------- Step 2: Forward Chaining (data-driven) ----------
+# Start from the KNOWN FACTS and keep firing every rule whose premises are all
+# known, adding its conclusion as a new fact. Stop when no new fact appears.
+# Direction: facts  ->  conclusions
+def forward_chaining(facts, rules):
+    known = set(facts)                       # facts we currently know (grows as rules fire)
+    print("Initial facts:", sorted(known))
+
+    step = 0
+    changed = True
+    while changed:                           # repeat until a full pass adds nothing new
+        changed = False
+        for i, (premises, conclusion) in enumerate(rules, start=1):
+            # rule fires if ALL premises are known (premises <= known means 'subset of')
+            # and the conclusion is not already known
+            if premises <= known and conclusion not in known:
+                known.add(conclusion)
+                changed = True
+                step += 1
+                print(f"  Step {step}: R{i} fired -> {' AND '.join(sorted(premises))}  =>  {conclusion}")
+
+    if step == 0:
+        print("  No rule could fire.")
+    print("All known facts:", sorted(known))
+    return known
+
+
+# ---------- Step 3: Backward Chaining (goal-driven) ----------
+# Start from a GOAL and work backwards: find a rule that concludes the goal,
+# then try to prove each of its premises (recursively) until they are all
+# known facts.
+# Direction: goal  ->  facts needed
+def backward_chaining(goal, facts, rules, depth=0, visiting=None):
+    visiting = visiting or set()             # goals currently being proved (prevents infinite loops)
+    indent = "  " * depth                    # indentation shows how deep the reasoning is
+    print(f"{indent}Goal: {goal}")
+
+    if goal in facts:                        # base case: the goal is a known fact
+        print(f"{indent}-> '{goal}' is a known fact")
+        return True
+
+    if goal in visiting:                     # already trying to prove this goal -> avoid a loop
+        return False
+    visiting = visiting | {goal}
+
+    for i, (premises, conclusion) in enumerate(rules, start=1):
+        if conclusion == goal:               # only rules that CONCLUDE the goal are relevant
+            print(f"{indent}Trying R{i}: {' AND '.join(sorted(premises))} -> {goal}")
+            # the goal is proved only if EVERY premise of the rule can be proved
+            if all(backward_chaining(p, facts, rules, depth + 1, visiting) for p in sorted(premises)):
+                print(f"{indent}-> '{goal}' is PROVED")
+                return True
+
+    print(f"{indent}-> '{goal}' cannot be proved")
+    return False
+
+
+# ---------- Step 4: Decision making (uses the derived facts) ----------
+def decide(known):
+    """Turn the derived facts into a final diagnosis and advice."""
+    diagnosis = [d for d in ("flu", "cold", "pneumonia_risk") if d in known]
+    print("\nDIAGNOSIS:", ", ".join(diagnosis) if diagnosis else "No diagnosis could be made")
+    if "rest_and_fluids" in known:
+        print("ADVICE   : Rest and drink plenty of fluids")
+    if "see_doctor" in known:
+        print("ADVICE   : See a doctor immediately")
+
+
+# ---------- Step 5: Run the expert system on several patients ----------
+show_rules(rules)
+
+patients = {
+    "Patient 1": {"fever", "cough", "body_ache"},
+    "Patient 2": {"sneezing", "runny_nose"},
+    "Patient 3": {"fever", "cough", "breathlessness"},
+}
+
+for name, facts in patients.items():
+    print("=" * 60)
+    print(name, "- symptoms:", sorted(facts))
+    print("=" * 60)
+
+    print("\n--- FORWARD CHAINING ---")
+    known = forward_chaining(facts, rules)
+    decide(known)
+
+    print("\n--- BACKWARD CHAINING ---")
+    for goal in ["flu", "cold", "see_doctor"]:
+        print(f"\nIs '{goal}' true for {name}?")
+        result = backward_chaining(goal, facts, rules)
+        print("Result:", result)
+    print()
+
+
+# ---------- Conclusion ----------
+# A rule-based expert system stores knowledge as IF-THEN rules in propositional
+# logic and uses an inference engine to reach decisions.
+# Forward chaining reasons from facts to conclusions (data-driven). It
+#   discovers EVERYTHING that follows from the facts, so it suits monitoring
+#   and diagnosis from symptoms.
+# Backward chaining reasons from a goal back to facts (goal-driven). It
+#   only looks at rules relevant to the goal, so it is efficient for checking
+#   one specific hypothesis ("does this patient have the flu?").

@@ -1,0 +1,33 @@
+import heapq
+
+maze = [[0,0,1,0,0], [0,0,1,0,0], [0,0,0,0,1], [1,1,1,0,0], [0,0,0,0,0]]
+goal = (4,4)
+moves = [(0,1), (1,0), (0,-1), (-1,0)]
+
+def heuristic(r, c): 
+    return abs(r - goal[0]) + abs(c - goal[1]) # Manhattan distance
+
+def search(is_astar):
+    # Queue stores: (priority, current_cost, (r,c), path)
+    pq = [(heuristic(0,0), 0, (0,0), [(0,0)])] 
+    visited = set()
+    
+    while pq:
+        _, g, n, path = heapq.heappop(pq)
+        
+        if n in visited: continue
+        visited.add(n)
+        
+        if n == goal: return len(path)-1, len(visited) # Returns: Path Length, Nodes Explored
+        
+        for dr, dc in moves:
+            r, c = n[0]+dr, n[1]+dc
+            if 0 <= r < 5 and 0 <= c < 5 and maze[r][c] == 0:
+                h = heuristic(r, c)
+                new_cost = g + 1
+                # A* uses (Cost + Heuristic). Greedy uses ONLY Heuristic.
+                priority = new_cost + h if is_astar else h
+                heapq.heappush(pq, (priority, new_cost, (r,c), path + [(r,c)]))
+
+print("Greedy BFS (Path, Explored):", search(is_astar=False))
+print("A* Search  (Path, Explored):", search(is_astar=True))
